@@ -33,17 +33,62 @@ namespace EFDatatable.Data
 
             if (!string.IsNullOrEmpty(request.search?.value))
             {
-                Expression<Func<T, bool>> exp = null;
-                var listExp = new List<FilterDefinition>();
+                Expression currentexp = null;
+                ParameterExpression param = Expression.Parameter(typeof(T), "t");
+
                 foreach (var item in request.columns.Where(a => a.searchable))
                 {
-                    ParameterExpression param = Expression.Parameter(typeof(T), "t");
                     MemberExpression member = Expression.Property(param, item.data);
-                    var operand = member.Type == typeof(string) ? Operand.Contains : Operand.Equal;
-                    listExp.Add(new FilterDefinition { Operand = operand, Field = item.data, Value = request.search.value });
+                    var isString = member.Type == typeof(string);
+                    var operand = isString ? Operand.Contains : Operand.Equal;
+
+                    var words = request.search.value.Split(' ').Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+                    if (isString && words.Count > 1 && item.data.Contains("Name"))
+                    {
+                        Expression exp = null;
+
+                        foreach (var word in words)
+                        {
+                            var filter = new FilterDefinition { Operand = operand, Field = item.data, Value = word };
+
+                            var expin = ExpressionBuilder.GetExpression<T>(param, filter);
+
+                            if (exp == null)
+                            {
+                                exp = expin;
+                            }
+                            else
+                            {
+                                exp = Expression.And(exp, expin);
+                            }
+                        }
+
+                        if (currentexp == null)
+                        {
+                            currentexp = exp;
+                        }
+                        else
+                        {
+                            currentexp = Expression.Or(currentexp, exp);
+                        }
+                    }
+                    else
+                    {
+                        var filter = new FilterDefinition { Operand = operand, Field = item.data, Value = request.search.value };
+                        var expin = ExpressionBuilder.GetExpression<T>(param, filter);
+                        if (currentexp == null)
+                        {
+                            currentexp = expin;
+                        }
+                        else
+                        {
+                            currentexp = Expression.Or(currentexp, expin);
+                        }
+                    }
                 }
-                exp = ExpressionBuilder.GetExpression<T>(listExp);
-                if (exp != null) query = query.Where(exp);
+                var exp2= Expression.Lambda<Func<T, bool>>(currentexp, param);
+
+                if (exp2 != null) query = query.Where(exp2);
             }
 
             if (!string.IsNullOrEmpty(request.search?.value) || request.filters.Any())

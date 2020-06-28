@@ -24,7 +24,7 @@ namespace EFDatatable.Data
             return Expression.Lambda<Func<T, bool>>(exp, param);
         }
 
-        private static Expression GetExpression<T>(ParameterExpression param, FilterDefinition filter)
+        public static Expression GetExpression<T>(ParameterExpression param, FilterDefinition filter)
         {
             MemberExpression member = Expression.Property(param, filter.Field);
             var converter = TypeDescriptor.GetConverter(member.Type);
